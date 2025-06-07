@@ -37,7 +37,7 @@ This code is specifically designed for running on Ubuntu or WSL2. It is not inte
 ### Usage
 
 ```bash
-git clone https://github.com/thinhlpg/vixtts-demo
+git clone https://github.com/quochoangvp/vixtts-demo
 cd vixtts-demo
 ./run.sh
 ```
