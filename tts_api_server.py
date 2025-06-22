@@ -135,9 +135,23 @@ def worker():
             )
             file_name = data.get("file_name") or get_file_name(data["text"])
             out_path = os.path.join(OUTPUT_DIR, file_name)
-            torchaudio.save(out_path, audio_tensor, 24000)
-            response_dict[request_id] = {"status": "done", "file": out_path}
-            logger.info(f"✅ Audio đã lưu: {out_path}")
+            # Save as WAV temporarily
+            wav_path = os.path.join(OUTPUT_DIR, file_name)
+            torchaudio.save(wav_path, audio_tensor, 24000)
+            
+            # Convert to MP3 128kbps
+            mp3_path = wav_path.replace(".wav", ".mp3")
+            cmd = [
+                "ffmpeg", "-y", "-i", wav_path,
+                "-codec:a", "libmp3lame", "-b:a", "128k", mp3_path
+            ]
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            
+            # Optionally remove the WAV to save space
+            os.remove(wav_path)
+            
+            response_dict[request_id] = {"status": "done", "file": mp3_path}
+            logger.info(f"✅ Audio đã lưu: {mp3_path}")
         except Exception as e:
             logger.error(f"❌ Lỗi khi xử lý request {request_id}: {e}", exc_info=True)
             response_dict[request_id] = {"status": "error", "error": str(e)}
@@ -168,7 +182,7 @@ def tts_api():
         result = response_dict.pop(request_id)
 
         if result["status"] == "done":
-            return send_file(result["file"], mimetype="audio/wav")
+            return send_file(result["file"], mimetype="audio/mpeg")
         else:
             return jsonify({"error": result["error"]}), 500
 
