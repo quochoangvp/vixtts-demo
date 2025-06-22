@@ -16,6 +16,7 @@ from huggingface_hub import snapshot_download
 from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import Xtts
 from vinorm import TTSnorm
+import unicodedata
 
 # Constants
 MODEL_DIR = "/opt/vixtts-demo/model"
@@ -43,6 +44,7 @@ response_dict = {}
 
 # Normalize text
 def normalize_vietnamese_text(text):
+    text = unicodedata.normalize("NFC", text)
     return (
         TTSnorm(text, unknown=False, lower=False, rule=True)
         .replace("..", ".")
