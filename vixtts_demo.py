@@ -239,7 +239,13 @@ def run_tts(lang, tts_text, speaker_audio_file, use_deepfilter, normalize_text):
     print("Saving output to ", out_path)
     torchaudio.save(out_path, out_wav, 24000)
 
-    return "Speech generated !", out_path
+    # Convert to MP3 to save disk space
+    mp3_out_path = out_path.replace(".wav", ".mp3")
+    subprocess.run([
+        "ffmpeg", "-y", "-i", out_path, "-codec:a", "libmp3lame", "-b:a", "128k", mp3_out_path
+    ])
+    print("Converted to MP3:", mp3_out_path)
+    return "Speech generated!", mp3_out_path
 
 
 # Define a logger to redirect
