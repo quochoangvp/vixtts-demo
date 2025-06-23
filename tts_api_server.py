@@ -136,14 +136,15 @@ def worker():
                 data.get("normalize", True),
             )
 
-            base_name = data.get("file_name") or get_file_name(data["text"])
+            # Gốc tên file có thể đã có .mp3 → cần xử lý lại
+            original_name = data.get("file_name") or get_file_name(data["text"])
+            base_name = os.path.splitext(original_name)[0]  # Xóa phần đuôi nếu có
+
             wav_path = os.path.join(OUTPUT_DIR, base_name + ".wav")
             mp3_path = os.path.join(OUTPUT_DIR, base_name + ".mp3")
 
-            # Save WAV
             torchaudio.save(wav_path, audio_tensor, 24000)
 
-            # Convert to MP3 128kbps
             cmd = [
                 "ffmpeg", "-y", "-i", wav_path,
                 "-codec:a", "libmp3lame", "-b:a", "128k", mp3_path
