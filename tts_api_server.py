@@ -59,13 +59,13 @@ def normalize_vietnamese_text(text):
         .replace("A.I", "Ây Ai")
     )
 
-# Filename generator
+# Filename generator (không có đuôi)
 def get_file_name(text, max_char=50):
     filename = text[:max_char].lower().replace(" ", "_")
     filename = filename.translate(str.maketrans("", "", string.punctuation.replace("_", "")))
     filename = unidecode(filename)
     current_datetime = datetime.now().strftime("%m%d%H%M%S")
-    return f"{current_datetime}_{filename}.wav"
+    return f"{current_datetime}_{filename}"
 
 # Load model
 def load_xtts_model():
@@ -124,7 +124,6 @@ def run_tts(text, lang="vi", speaker_audio=REFERENCE_AUDIO, normalize=True):
     return torch.tensor(wav).unsqueeze(0)
 
 # Worker thread
-
 def worker():
     while True:
         request_id, data = request_queue.get()
@@ -136,23 +135,31 @@ def worker():
                 data.get("speaker_audio", REFERENCE_AUDIO),
                 data.get("normalize", True),
             )
-            file_name = data.get("file_name") or get_file_name(data["text"])
-            out_path = os.path.join(OUTPUT_DIR, file_name)
-            # Save as WAV temporarily
-            wav_path = os.path.join(OUTPUT_DIR, file_name)
+
+            base_name = data.get("file_name") or get_file_name(data["text"])
+            wav_path = os.path.join(OUTPUT_DIR, base_name + ".wav")
+            mp3_path = os.path.join(OUTPUT_DIR, base_name + ".mp3")
+
+            # Save WAV
             torchaudio.save(wav_path, audio_tensor, 24000)
-            
+
             # Convert to MP3 128kbps
-            mp3_path = wav_path.replace(".wav", ".mp3")
             cmd = [
                 "ffmpeg", "-y", "-i", wav_path,
                 "-codec:a", "libmp3lame", "-b:a", "128k", mp3_path
             ]
-            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            
-            # Optionally remove the WAV to save space
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+            if not os.path.exists(mp3_path):
+                logger.error(f"❌ FFmpeg lỗi:\n{result.stderr.decode()}")
+                response_dict[request_id] = {
+                    "status": "error",
+                    "error": "Không tạo được file MP3."
+                }
+                continue
+
             os.remove(wav_path)
-            
+
             response_dict[request_id] = {"status": "done", "file": mp3_path}
             logger.info(f"✅ Audio đã lưu: {mp3_path}")
         except Exception as e:
@@ -196,4 +203,3 @@ def tts_api():
 # Run the API server
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000, debug=False)
-
