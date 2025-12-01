@@ -169,7 +169,10 @@ def worker():
             )
             file_name = data.get("file_name") or get_file_name(data["text"])
             out_path = os.path.join(OUTPUT_DIR, file_name)
-            torchaudio.save(out_path, audio_tensor, 24000)
+            # Use soundfile instead of torchaudio to avoid torchcodec dependency
+            # soundfile expects (samples, channels), so transpose from (channels, samples)
+            audio_numpy = audio_tensor.squeeze(0).cpu().numpy()
+            sf.write(out_path, audio_numpy, 24000)
             response_dict[request_id] = {"status": "done", "file": out_path}
             logger.info(f"✅ Audio đã lưu: {out_path}")
         except Exception as e:

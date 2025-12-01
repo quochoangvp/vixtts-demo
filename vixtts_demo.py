@@ -19,7 +19,40 @@ from underthesea import sent_tokenize
 from unidecode import unidecode
 from vinorm import TTSnorm
 
+# Monkey patch load_audio to use soundfile instead of torchaudio to avoid torchcodec dependency
+def patched_load_audio(audiopath, sampling_rate):
+    """Patched version using soundfile to avoid torchcodec dependency"""
+    # Load audio using soundfile
+    audio_data, lsr = sf.read(audiopath, dtype='float32')
+    
+    # Convert to torch tensor
+    audio = torch.FloatTensor(audio_data)
+    
+    # Handle shape: soundfile returns (samples,) or (samples, channels)
+    if audio.dim() == 1:
+        audio = audio.unsqueeze(0)  # Add channel dimension: (1, samples)
+    else:
+        audio = audio.T  # Transpose to (channels, samples)
+    
+    # stereo to mono if needed
+    if audio.size(0) != 1:
+        audio = torch.mean(audio, dim=0, keepdim=True)
+
+    if lsr != sampling_rate:
+        import torchaudio
+        audio = torchaudio.functional.resample(audio, lsr, sampling_rate)
+
+    # Check audio range
+    if torch.any(audio > 10) or not torch.any(audio < 0):
+        print(f"Error with {audiopath}. Max={audio.max()} min={audio.min()}")
+    # clip audio invalid values
+    audio.clip_(-1, 1)
+    return audio
+
+# Apply the patch before importing TTS models
 from TTS.tts.configs.xtts_config import XttsConfig
+from TTS.tts.models import xtts as xtts_module
+xtts_module.load_audio = patched_load_audio
 from TTS.tts.models.xtts import Xtts
 
 XTTS_MODEL = None
@@ -237,7 +270,9 @@ def run_tts(lang, tts_text, speaker_audio_file, use_deepfilter, normalize_text):
     gr_audio_id = os.path.basename(os.path.dirname(speaker_audio_file))
     out_path = os.path.join(OUTPUT_DIR, f"{get_file_name(tts_text)}_{gr_audio_id}.wav")
     print("Saving output to ", out_path)
-    torchaudio.save(out_path, out_wav, 24000)
+    # Use soundfile instead of torchaudio to avoid torchcodec dependency
+    audio_numpy = out_wav.squeeze(0).cpu().numpy()
+    sf.write(out_path, audio_numpy, 24000)
 
     return "Speech generated !", out_path
 
