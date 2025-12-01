@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, send_file
 import torch
 import torchaudio
+import soundfile as sf
 import os
 import uuid
 import time
@@ -13,7 +14,40 @@ from datetime import datetime
 from unidecode import unidecode
 from underthesea import sent_tokenize
 from huggingface_hub import snapshot_download
+
+# Monkey patch load_audio to use soundfile instead of torchaudio to avoid torchcodec dependency
+def patched_load_audio(audiopath, sampling_rate):
+    """Patched version using soundfile to avoid torchcodec dependency"""
+    # Load audio using soundfile
+    audio_data, lsr = sf.read(audiopath, dtype='float32')
+    
+    # Convert to torch tensor
+    audio = torch.FloatTensor(audio_data)
+    
+    # Handle shape: soundfile returns (samples,) or (samples, channels)
+    if audio.dim() == 1:
+        audio = audio.unsqueeze(0)  # Add channel dimension: (1, samples)
+    else:
+        audio = audio.T  # Transpose to (channels, samples)
+    
+    # stereo to mono if needed
+    if audio.size(0) != 1:
+        audio = torch.mean(audio, dim=0, keepdim=True)
+
+    if lsr != sampling_rate:
+        audio = torchaudio.functional.resample(audio, lsr, sampling_rate)
+
+    # Check audio range
+    if torch.any(audio > 10) or not torch.any(audio < 0):
+        print(f"Error with {audiopath}. Max={audio.max()} min={audio.min()}")
+    # clip audio invalid values
+    audio.clip_(-1, 1)
+    return audio
+
+# Apply the patch before importing TTS models
 from TTS.tts.configs.xtts_config import XttsConfig
+from TTS.tts.models import xtts as xtts_module
+xtts_module.load_audio = patched_load_audio
 from TTS.tts.models.xtts import Xtts
 from vinorm import TTSnorm
 
