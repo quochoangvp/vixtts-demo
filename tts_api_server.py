@@ -54,7 +54,7 @@ from vinorm import TTSnorm
 # Constants
 MODEL_DIR = "/opt/vixtts-demo/model"
 OUTPUT_DIR = "/opt/vixtts-demo/output"
-REFERENCE_AUDIO = "assets/nu-luu-loat.wav"
+REFERENCE_AUDIO = "assets/nu-nhan-nha.wav"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # Logging
