@@ -143,7 +143,7 @@ def run_tts(text, lang="vi", speaker_audio=REFERENCE_AUDIO, normalize=True):
     sentences = sent_tokenize(text)
     wav_chunks = []
     
-    # Silence chunk (0.5s) to insert between sentences if needed
+    # Silence chunk (0.2s) to insert between sentences if needed
     # 24000 sample rate * 0.2s = 4800 samples
     silence = torch.zeros(int(24000 * 0.2))
 
@@ -160,11 +160,11 @@ def run_tts(text, lang="vi", speaker_audio=REFERENCE_AUDIO, normalize=True):
                 language=lang,
                 gpt_cond_latent=gpt_latent,
                 speaker_embedding=speaker_embed,
-                temperature=0.3,
+                temperature=0.7,  # Slightly increase temperature for more natural flow
                 length_penalty=1.0,
-                repetition_penalty=10.0,
-                top_k=30,
-                top_p=0.85,
+                repetition_penalty=2.0,  # Reduce from 10.0 to avoid forced pauses
+                top_k=50,  # Increase top_k for better vocabulary
+                top_p=0.8, # Slightly reduce top_p
                 enable_text_splitting=True,
             )["wav"]
             
