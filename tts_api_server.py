@@ -139,20 +139,53 @@ def run_tts(text, lang="vi", speaker_audio=REFERENCE_AUDIO, normalize=True):
         conditioning_latents_cache[cache_key] = (gpt_latent, speaker_embed)
         logger.info("✅ Conditioning latents mới tạo.")
 
-    wav = XTTS_MODEL.inference(
-        text=text,
-        language=lang,
-        gpt_cond_latent=gpt_latent,
-        speaker_embedding=speaker_embed,
-        temperature=0.3,
-        length_penalty=1.0,
-        repetition_penalty=10.0,
-        top_k=30,
-        top_p=0.85,
-        enable_text_splitting=True,
-    )["wav"]
+    # Split text into sentences to avoid 250 char limit
+    sentences = sent_tokenize(text)
+    wav_chunks = []
+    
+    # Silence chunk (0.5s) to insert between sentences if needed
+    # 24000 sample rate * 0.2s = 4800 samples
+    silence = torch.zeros(int(24000 * 0.2))
 
-    return torch.tensor(wav).unsqueeze(0)
+    logger.info(f"Processing {len(sentences)} sentences...")
+
+    for i, sentence in enumerate(sentences):
+        if not sentence.strip():
+            continue
+            
+        # Synthesize each sentence
+        try:
+            wav_chunk = XTTS_MODEL.inference(
+                text=sentence,
+                language=lang,
+                gpt_cond_latent=gpt_latent,
+                speaker_embedding=speaker_embed,
+                temperature=0.3,
+                length_penalty=1.0,
+                repetition_penalty=10.0,
+                top_k=30,
+                top_p=0.85,
+                enable_text_splitting=True,
+                speed=1.2,
+            )["wav"]
+            
+            wav_tensor = torch.tensor(wav_chunk)
+            wav_chunks.append(wav_tensor)
+            
+            # Add silence between sentences (but not after the last one)
+            if i < len(sentences) - 1:
+                wav_chunks.append(silence)
+                
+        except Exception as e:
+            logger.error(f"Error processing sentence '{sentence[:20]}...': {e}")
+            continue
+
+    if wav_chunks:
+        full_wav = torch.cat(wav_chunks, dim=0)
+    else:
+        full_wav = torch.zeros(1)
+
+    return full_wav.unsqueeze(0)
 
 # Worker thread
 
