@@ -166,7 +166,6 @@ def run_tts(text, lang="vi", speaker_audio=REFERENCE_AUDIO, normalize=True):
                 top_k=30,
                 top_p=0.85,
                 enable_text_splitting=True,
-                speed=1.2,
             )["wav"]
             
             wav_tensor = torch.tensor(wav_chunk)
